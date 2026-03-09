@@ -1,0 +1,70 @@
+// Xsolla Unity Plugin - Manifest Optimization
+// Removes unnecessary startup initializer to improve app launch performance.
+
+afterEvaluate {
+    android.applicationVariants.all { variant ->
+        def taskName = "process${variant.name.capitalize()}ManifestForPackage"
+        def manifestTask = tasks.findByName(taskName)
+
+        if (manifestTask) {
+            manifestTask.doLast {
+                try {
+                    def manifestFile = findManifest(variant)
+
+                    if (!manifestFile) {
+                        println "[Xsolla] Manifest file not found for ${variant.name}, skipping optimization."
+                        return
+                    }
+
+                    if (!manifestFile.text.contains('PayStationCacheInitializer')) {
+	                    println "[Xsolla] No need to optimize the manifest."
+                        return
+                    }
+
+                    removeInitializer(manifestFile, variant.name)
+                } catch (Exception e) {
+                    println "[Xsolla] Warning: Could not optimize manifest for ${variant.name}: ${e.message}"
+                }
+            }
+        }
+    }
+}
+
+def findManifest(variant) {
+    def searchPaths = [
+        "intermediates/packaged_manifests/${variant.name}/process${variant.name.capitalize()}ManifestForPackage/AndroidManifest.xml",
+        "intermediates/packaged_manifests/${variant.name}/AndroidManifest.xml",
+        "intermediates/merged_manifests/${variant.name}/AndroidManifest.xml"
+    ]
+
+    for (path in searchPaths) {
+        def file = new File(project.buildDir, path)
+        if (file.exists()) return file
+    }
+
+    return null
+}
+
+def removeInitializer(manifestFile, variantName) {
+    def manifest = new XmlSlurper(false, false).parseText(manifestFile.text)
+    def removed = false
+
+    manifest.application.provider.each { provider ->
+        if (provider.'@android:name'.text() == 'androidx.startup.InitializationProvider') {
+            provider.'meta-data'.findAll {
+                it.'@android:name'.text() == 'com.xsolla.android.payments.caching.PayStationCacheInitializer'
+            }.each {
+                it.replaceNode {}
+                removed = true
+            }
+        }
+    }
+
+    if (removed) {
+        def serialized = groovy.xml.XmlUtil.serialize(
+            new groovy.xml.StreamingMarkupBuilder().bind { mkp.yield manifest }
+        )
+        manifestFile.text = serialized
+        println "[Xsolla] Manifest optimized for ${variantName} build."
+    }
+}

@@ -1,0 +1,20 @@
+{
+    "name": "Xsolla.SDK.Login",
+    "rootNamespace": "",
+    "references": [
+        "Xsolla.UnitySDK",
+        "Xsolla.SDK.Common",
+        "Xsolla.SDK.Utils"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "!XSOLLA_SDK_DISABLE"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

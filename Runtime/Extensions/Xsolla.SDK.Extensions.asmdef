@@ -1,0 +1,20 @@
+{
+    "name": "Xsolla.SDK.Extensions",
+    "rootNamespace": "",
+    "references": [
+      "Xsolla.UnitySDK",
+      "Xsolla.SDK.Common",
+      "Xsolla.SDK.Store"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "!XSOLLA_SDK_DISABLE"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

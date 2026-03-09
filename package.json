@@ -1,0 +1,19 @@
+{
+    "name": "com.xsolla.sdk",
+    "displayName": "Xsolla SDK",
+    "description": "The Xsolla SDK for Unity brings out-of-store commerce, in-app purchases, and global payments to Unity projects across mobile, PC, and web—all through a single simplified integration. See README.md file for more information.",
+    "author": {
+        "name": "Xsolla",
+        "email": "integration@xsolla.com",
+        "url": "https://xsolla.com/partner-support"
+    },
+    "unity": "2022.3",
+    "version": "3.1.2",
+    "dependencies": {
+        "com.unity.purchasing": "4.13.0",
+        "com.unity.nuget.newtonsoft-json": "2.0.0"
+    },
+    "license": "See LICENSE file",
+    "hideInEditor": false,
+    "documentationUrl": "https://developers.xsolla.com/sdk/"
+}

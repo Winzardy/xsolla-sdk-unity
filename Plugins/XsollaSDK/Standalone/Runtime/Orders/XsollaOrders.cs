@@ -1,0 +1,158 @@
+using System;
+using System.Collections.Generic;
+using Xsolla.Core;
+
+namespace Xsolla.Orders
+{
+	internal static class XsollaOrders
+	{
+		private const string BaseUrl = "https://store.xsolla.com/api/v2/project";
+
+		/// <summary>
+		/// Opens Pay Station in the browser with a retrieved Pay Station token.
+		/// </summary>
+		/// More about the use cases:
+		/// - [Cart purchase](https://developers.xsolla.com/sdk/unity/item-purchase/cart-purchase/)
+		/// - [Purchase in one click](https://developers.xsolla.com/sdk/unity/item-purchase/one-click-purchase/)
+		/// - [Ordering free items](https://developers.xsolla.com/sdk/unity/promo/free-items/#sdk_free_items_order_item_via_cart)
+		/// <param name="paymentToken">Pay Station token for the purchase.</param>
+		/// <param name="forcePlatformBrowser">Whether to force platform browser usage ignoring plug-in settings.</param>
+		/// <param name="onBrowserClosed">Called after the browser was closed.</param>
+		/// <seealso cref="XsollaWebBrowser"/>
+		public static void OpenPurchaseUI(XsollaSettings settings, string paymentToken, bool forcePlatformBrowser = false, Action<BrowserCloseInfo> onBrowserClosed = null)
+		{
+			XsollaWebBrowser.OpenPurchaseUI(
+				settings, 
+				paymentToken,
+				forcePlatformBrowser,
+				onBrowserClosed);
+		}
+
+		/// <summary>
+		/// Returns status of the specified order.
+		/// </summary>
+		/// <remarks>[More about the use cases](https://developers.xsolla.com/sdk/unity/item-purchase/track-order/).</remarks>
+		/// <param name="orderId">Unique order identifier.</param>
+		/// <param name="onSuccess">Called after server response.</param>
+		/// <param name="onError">Called after the request resulted with an error.</param>
+		/// <seealso cref="XsollaCatalog.CreateOrderByVirtualCurrency"/>
+		/// <param name="sdkType">SDK type. Used for internal analytics.</param>
+		public static void CheckOrderStatus(XsollaSettings settings, int orderId, Action<OrderStatus> onSuccess, Action<Error> onError, SdkType sdkType = SdkType.Store)
+		{
+			OrderStatusService.GetOrderStatus(settings, orderId, onSuccess, onError, sdkType);
+		}
+
+		/// <summary>
+		/// Creates a new payment token.
+		/// </summary>
+		/// <param name="amount">The total amount to be paid by the user.</param>
+		/// <param name="currency">Default purchase currency (USD by default). Three-letter currency code per [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217). Check the documentation for detailed information about [currencies supported by Xsolla](https://developers.xsolla.com/doc/pay-station/references/supported-currencies/).</param>
+		/// <param name="description">Purchase description. Used to describe the purchase if there are no specific items.</param>
+		/// <param name="onSuccess">Called after the successful item purchase.</param>
+		/// <param name="onError">Called after the request resulted with an error.</param>
+		/// <param name="locale">Interface language. [Two-letter lowercase language code](https://developers.xsolla.com/doc/pay-station/features/localization/). Leave empty to use the default value.</param>
+		/// <param name="externalID">Transaction's external ID.</param>
+		/// <param name="paymentMethod">Payment method ID.</param>
+		/// <param name="customParameters">Your custom parameters represented as a valid JSON set of key-value pairs.</param>
+		public static void CreatePaymentToken(
+			XsollaSettings settings,
+			float amount,
+			string currency,
+			string description,
+			Action<PaymentToken> onSuccess,
+			Action<Error> onError,
+			string locale = null,
+			string externalID = null,
+			int? paymentMethod = null,
+			object customParameters = null)
+		{
+			var url = $"{BaseUrl}/{settings.StoreProjectId}/payment";
+			var checkout = new CreatePaymentTokenRequest.Purchase.Checkout(amount, currency);
+			var purchaseDescription = new CreatePaymentTokenRequest.Purchase.Description(description);
+			var purchase = new CreatePaymentTokenRequest.Purchase(checkout, purchaseDescription);
+			var paymentSettings = GeneratePaymentTokenSettings(settings, currency, locale, externalID, paymentMethod);
+			var requestData = new CreatePaymentTokenRequest(purchase, paymentSettings, customParameters);
+
+			WebRequestHelper.Instance.PostRequest(
+				SdkType.Store,
+				url,
+				requestData,
+				PurchaseParamsGenerator.GeneratePaymentHeaders(settings),
+				onSuccess,
+				error => TokenAutoRefresher.Check(settings, error, onError, () => CreatePaymentToken(settings, amount, currency, description, onSuccess, onError, locale, externalID, paymentMethod, customParameters)),
+				ErrorGroup.BuyItemErrors);
+		}
+
+		/// <summary>
+		/// Creates a new payment token.
+		/// </summary>
+		/// <param name="amount">The total amount to be paid by the user.</param>
+		/// <param name="currency">Default purchase currency (USD by default). Three-letter currency code per [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217). Check the documentation for detailed information about [currencies supported by Xsolla](https://developers.xsolla.com/doc/pay-station/references/supported-currencies/).</param>
+		/// <param name="items">Used to describe a purchase if it includes a list of specific items.</param>
+		/// <param name="onSuccess">Called after the successful item purchase.</param>
+		/// <param name="onError">Called after the request resulted with an error.</param>
+		/// <param name="locale">Interface language. [Two-letter lowercase language code](https://developers.xsolla.com/doc/pay-station/features/localization/). Leave empty to use the default value.</param>
+		/// <param name="externalID">Transaction's external ID.</param>
+		/// <param name="paymentMethod">Payment method ID.</param>
+		/// <param name="customParameters">Your custom parameters represented as a valid JSON set of key-value pairs.</param>
+		public static void CreatePaymentToken(
+			XsollaSettings settings,
+			float amount,
+			string currency,
+			PaymentTokenItem[] items,
+			Action<PaymentToken> onSuccess,
+			Action<Error> onError,
+			string locale = null,
+			string externalID = null,
+			int? paymentMethod = null,
+			object customParameters = null)
+		{
+			var url = $"{BaseUrl}/{settings.StoreProjectId}/payment";
+			var checkout = new CreatePaymentTokenRequest.Purchase.Checkout(amount, currency);
+			var purchaseItems = new List<CreatePaymentTokenRequest.Purchase.Item>(items.Length);
+
+			foreach (var item in items)
+			{
+				var price = new CreatePaymentTokenRequest.Purchase.Item.Price(item.Amount, item.AmountBeforeDiscount);
+				var purchaseItem = new CreatePaymentTokenRequest.Purchase.Item(item.Name, price, item.ImageUrl, item.Description, item.Quantity, item.IsBonus);
+				purchaseItems.Add(purchaseItem);
+			}
+
+			var purchase = new CreatePaymentTokenRequest.Purchase(checkout, purchaseItems.ToArray());
+			var paymentSettings = GeneratePaymentTokenSettings(settings, currency, locale, externalID, paymentMethod);
+			var requestData = new CreatePaymentTokenRequest(purchase, paymentSettings, customParameters);
+
+			WebRequestHelper.Instance.PostRequest(
+				SdkType.Store,
+				url,
+				requestData,
+				PurchaseParamsGenerator.GeneratePaymentHeaders(settings),
+				onSuccess,
+				error => TokenAutoRefresher.Check(settings, error, onError, () => CreatePaymentToken(settings, amount, currency, items, onSuccess, onError, locale, externalID, paymentMethod, customParameters)),
+				ErrorGroup.BuyItemErrors);
+		}
+
+		private static CreatePaymentTokenRequest.Settings GeneratePaymentTokenSettings(XsollaSettings settings, string currency, string locale, string externalID, int? paymentMethod)
+		{
+			var baseSettings = new PurchaseParamsRequest.Settings {
+				ui = PayStationUISettings.GenerateSettings(settings),
+				redirect_policy = RedirectPolicySettings.GeneratePolicy(settings)
+			};
+
+			baseSettings.return_url = baseSettings.redirect_policy?.return_url;
+
+			var paymentSettings = new CreatePaymentTokenRequest.Settings {
+				return_url = baseSettings.return_url,
+				ui = baseSettings.ui,
+				redirect_policy = baseSettings.redirect_policy,
+				currency = currency,
+				locale = locale,
+				sandbox = settings.IsSandbox,
+				external_id = externalID,
+				payment_method = paymentMethod
+			};
+
+			return paymentSettings;
+		}
+	}
+}

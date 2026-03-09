@@ -1,0 +1,2 @@
+*.framework/*.meta
+*.framework/*/*.meta
