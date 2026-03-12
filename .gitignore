@@ -1,0 +1,15 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vs/
+.vscode/
+*.swp
+*.swo
+
+# Unity meta files for non-package assets
+README.md.meta
+CHANGELOG.md.meta
+LICENSE.meta

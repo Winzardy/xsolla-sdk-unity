@@ -10,7 +10,7 @@ Pre-built Unity SDK for integrating in-game payments into your app via Xsolla Pa
 
 See exactly how payments work before writing a single line of code. The SDK Explorer lets you walk through authentication, catalog loading, purchasing, and finalization — all in an interactive environment.
 
-[![SDK Explorer — interactive demo of Xsolla Mobile SDK payment flow](readme-assets/explorer.png)](https://developers.xsolla.com/sdk/demo/)
+[![SDK Explorer — interactive demo of Xsolla Mobile SDK payment flow](readme-assets~/explorer.png)](https://developers.xsolla.com/sdk/demo/)
 
 [**Integrate Now →**](https://developers.xsolla.com/sdk/demo/)
 
