@@ -1,3 +1,9 @@
+## [3.1.3] - 2026-13-03
+
+### Changed
+
+- Android: updated SDK to `3.0.36` (various bugfixes)
+
 ## [3.1.2] - 2026-03-09
 
 ### Changed
