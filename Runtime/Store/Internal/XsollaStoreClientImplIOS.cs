@@ -175,18 +175,16 @@ namespace Xsolla.SDK.Store
         #region Restore
         
         [DllImport("__Internal")]
-        private static extern void _XsollaUnityBridgeRestore();
+        private static extern void _XsollaUnityBridgeRestore(XsollaClientBridgeHelpersIOS.XsollaUnityBridgeJsonCallbackDelegate callback, Int64 callbackData);
         public void RestorePurchases(RestorePurchasesResultFunc onSuccess, ErrorFunc onError)
         {
-            if (m_PaymentListener != null)
-                XsollaClientBridgeHelpersIOS.AddCommonListenerCallback(
-                    m_PaymentListener,
-                    "Restore",
+            _XsollaUnityBridgeRestore(
+                callback: XsollaClientBridgeHelpersIOS.OnXsollaUnityBridgeJsonCallback,
+                callbackData: XsollaClientBridgeHelpersIOS.CreateCallbackData("Restore",
                     onSuccess: result => onSuccess?.Invoke(XsollaStoreClientHelpers.JsonToRestoredItems(result)),
                     onError: error => onError?.Invoke(error)
-                );
-            
-            _XsollaUnityBridgeRestore();
+                )
+            );
         }
         
         #endregion

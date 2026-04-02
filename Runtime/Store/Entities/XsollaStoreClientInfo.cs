@@ -1,4 +1,5 @@
 ﻿using System;
+using UnityEngine;
 using Xsolla.SDK.Store;
 using Xsolla.SDK.Utils;
 
@@ -44,10 +45,17 @@ namespace Xsolla.SDK.Common
             RunOnStartThread.Create();
             
 #if UNITY_IOS
-            XsollaStoreClientImplIOS.GetAppleStorefront_(
-                onSuccess: storefront => onSuccess?.Invoke(storefront),
-                onError: error => onError?.Invoke(error)
-            );
+            if (Application.platform == RuntimePlatform.IPhonePlayer)
+            {
+                XsollaStoreClientImplIOS.GetAppleStorefront_(
+                    onSuccess: storefront => onSuccess?.Invoke(storefront),
+                    onError: error => onError?.Invoke(error)
+                );
+            }
+            else
+            {
+                onError?.Invoke("unsupported platform");
+            }
 #else
             onError?.Invoke("unsupported platform");
 #endif
@@ -81,10 +89,17 @@ namespace Xsolla.SDK.Common
             RunOnStartThread.Create();
             
 #if UNITY_IOS
-            XsollaStoreClientImplIOS.GetAppleDistribution_(
-                onSuccess: isRunningInAlternativeDistribution => onSuccess?.Invoke(isRunningInAlternativeDistribution),
-                onError: error => onError?.Invoke(error)
-            );
+            if (Application.platform == RuntimePlatform.IPhonePlayer)
+            {
+                XsollaStoreClientImplIOS.GetAppleDistribution_(
+                    onSuccess: isRunningInAlternativeDistribution => onSuccess?.Invoke(isRunningInAlternativeDistribution),
+                    onError: error => onError?.Invoke(error)
+                );
+            }
+            else
+            {
+                onError?.Invoke("unsupported platform");
+            }
 #else
             onError?.Invoke("unsupported platform");
 #endif

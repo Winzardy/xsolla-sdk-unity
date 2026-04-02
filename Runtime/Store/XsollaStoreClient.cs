@@ -117,6 +117,8 @@ namespace Xsolla.SDK.Store
                         {
                             completionHandler?.Invoke(items, null);
 
+#if !UNITY_IOS
+                            // iOS restores automatically on start via the native SDK observer
                             _storeImpl.RestorePurchases(
                                 onSuccess: restored =>
                                 {
@@ -125,6 +127,7 @@ namespace Xsolla.SDK.Store
                                 },
                                 onError: error => _onRestore?.Invoke(null, XsollaStoreClientHelpers.ParsePurchaseError(error))
                             );
+#endif
                         },
                         onError: error => completionHandler?.Invoke(null, XsollaStoreClientError.Message(error))
                     );

@@ -366,11 +366,13 @@ NSString* productToJson(NSArray<SKXProduct *>* products) {
                 if (t.wasPaystationOpened) {
                     _SendPaystationCompletedEvent(self);
                 }
-                
+
                 NSString* msg = t.error ? [t.error description] : @"Failed to buy";
                 NSString* code = [self mapNSErrorToCode:t.error];
                 NSString* json = [self errorJsonWithMessage:msg code:code];
                 callback(nil, json);
+                // Finish failed transactions here — Unity side only receives the error string and has no transaction info to call consume/finish itself
+                [[SKPaymentQueue defaultQueue] finishTransaction:t];
                 ended = YES;
                 break;
             }
@@ -1055,11 +1057,18 @@ extern "C"
         }
     }
 
-    void _XsollaUnityBridgeRestore() {
+    void _XsollaUnityBridgeRestore(XsollaUnityBridgeJsonCallbackDelegate callback, int64_t callbackData) {
         XsollaUnityLog(SKLogLevelVerbose, @"_XsollaUnityBridgeRestore");
-                
-        XsollaJsonCallbackDelegate callback = XsollaUnityMobile.shared.defaultPurchaseCallback;
-        callback(@"{ purchases: [] }", nil);
+
+        [[SKPaymentQueue defaultQueue] restoreUnfinishedPurchasesWithCompletion:^(SKXRestorationError* restoreError) {
+            if (restoreError != nil) {
+                NSString* errorJson = [[XsollaUnityMobile shared] errorJsonWithMessage:restoreError.localizedDescription
+                                                                                 code:kXsollaPurchaseErrorCodeInternal];
+                callback(callbackData, NULL, [errorJson UTF8String]);
+            } else {
+                callback(callbackData, "{ \"purchases\": [] }", NULL);
+            }
+        }];
     }
 
     void _XsollaUnityBridgeProductsRequest(const char* productIdsJson, XsollaUnityBridgeJsonCallbackDelegate callback, int64_t callbackData) {

@@ -1,3 +1,14 @@
+## [3.1.7] - 2026-02-04
+
+### Changed
+
+- iOS: updated SDK to `3.9.0` (purchase restoration support)
+
+### Fixed
+
+- iOS: `RestorePurchases` now properly triggers unfinished purchase restoration via the native SDK
+- iOS: failed transactions are now finished immediately to prevent them from blocking future restores
+
 ## [3.1.6] - 2026-02-04
 
 ### Changed
