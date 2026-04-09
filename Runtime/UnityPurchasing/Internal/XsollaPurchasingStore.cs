@@ -111,10 +111,15 @@ namespace Xsolla.SDK.UnityPurchasing
                     productsRequestFuture, (inventory, store) => (inventory, store)
                 );
 
+#if UNITY_IOS
+                // iOS restores automatically on start via the native SDK observer
+                productsRestorePromise.Complete(new XsollaStoreClientPurchasedProduct[0]);
+#else
                 _storeClient.RestorePurchases(
                     onSuccess: items => productsRestorePromise.Complete(items),
                     onError: error => productsRestorePromise.CompleteWithError(error)
                 );
+#endif
 
                 _storeClient.FetchProducts(products.MapToArray(product => product.storeSpecificId),
                     onSuccess: items => productsRequestPromise.Complete(items),

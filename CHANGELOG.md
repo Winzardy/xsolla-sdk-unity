@@ -1,3 +1,14 @@
+## [3.1.8] - 2026-09-04
+
+### Changed
+
+- Android: updated SDK to `3.0.40` (`AsyncRetryScheduler` exception handling improvements)
+- Added `LinuxStandalone64` to `.asmdef`
+
+### Fixed
+
+- iOS: Fixed `RestorePurchases` call during Unity Purchasing initialization causing a failure
+
 ## [3.1.7] - 2026-02-04
 
 ### Changed
