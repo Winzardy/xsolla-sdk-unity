@@ -49,7 +49,7 @@ namespace Xsolla.SDK.Editor
             string frameworkTarget = pbxProject.GetUnityFrameworkTargetGuid();
 
             string packageGuid = pbxProject.AddRemotePackageReferenceAtVersionUpToNextMinor(PackageUrl, PackageVersion);
-            //pbxProject.AddRemotePackageFrameworkToProject(mainTarget, PackageProduct, packageGuid, false);
+            pbxProject.AddRemotePackageFrameworkToProject(mainTarget, PackageProduct, packageGuid, false);
             pbxProject.AddRemotePackageFrameworkToProject(frameworkTarget, PackageProduct, packageGuid, false);
             AddSignatureCleanupPhase(pbxProject, frameworkTarget);
 
