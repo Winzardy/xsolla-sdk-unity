@@ -1,0 +1,11 @@
+framework module XsollaMobileSDK {
+  umbrella header "XsollaMobileSDK.h"
+  export *
+
+  module * { export * }
+}
+
+module XsollaMobileSDK.Swift {
+  header "XsollaMobileSDK-Swift.h"
+  requires objc
+}
