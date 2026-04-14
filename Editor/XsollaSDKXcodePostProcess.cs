@@ -19,7 +19,7 @@ namespace Xsolla.SDK.Editor
             if (buildTarget != BuildTarget.iOS) return;
 
             AddUrlTypes(buildPath);
-            AddSwiftPackage(buildPath);
+            //AddSwiftPackage(buildPath);
         }
 
         static void AddUrlTypes(string buildPath)
