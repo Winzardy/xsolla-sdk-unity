@@ -49,7 +49,6 @@ namespace Xsolla.SDK.Editor
             string frameworkTarget = pbxProject.GetUnityFrameworkTargetGuid();
 
             string packageGuid = pbxProject.AddRemotePackageReferenceAtVersionUpToNextMinor(PackageUrl, PackageVersion);
-            pbxProject.AddRemotePackageFrameworkToProject(frameworkTarget, PackageProduct, packageGuid, false);
 
             pbxProject.WriteToFile(projectPath);
         }
