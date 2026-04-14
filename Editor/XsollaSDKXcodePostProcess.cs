@@ -51,8 +51,28 @@ namespace Xsolla.SDK.Editor
             string packageGuid = pbxProject.AddRemotePackageReferenceAtVersionUpToNextMinor(PackageUrl, PackageVersion);
             //pbxProject.AddRemotePackageFrameworkToProject(mainTarget, PackageProduct, packageGuid, false);
             pbxProject.AddRemotePackageFrameworkToProject(frameworkTarget, PackageProduct, packageGuid, false);
+            AddSignatureCleanupPhase(pbxProject, frameworkTarget);
 
             pbxProject.WriteToFile(projectPath);
+        }
+
+        const string PhaseName = "Fix Xsolla Signature Collision";
+        const string ShellPath = "/bin/sh";
+        const string ShellScript = @"if [ ""${XCODE_VERSION_MAJOR:-0}"" -ge ""1500"" ]; then
+            echo ""[Xsolla] Removing duplicate signature files""
+            find ""$BUILD_DIR/$CONFIGURATION-iphoneos"" -name ""XsollaMobileSDK.xcframework-ios.signature"" -type f -delete 2>/dev/null || true
+            fi";
+
+        static void AddSignatureCleanupPhase(PBXProject pbxProject, string frameworkTarget)
+        {
+            var existing = pbxProject.GetShellScriptBuildPhaseForTarget(
+                frameworkTarget, PhaseName, ShellPath, ShellScript);
+
+            if (string.IsNullOrEmpty(existing))
+            {
+                pbxProject.AddShellScriptBuildPhaseBeforeTargetPostprocess(
+                    frameworkTarget, PhaseName, ShellPath, ShellScript);
+            }
         }
     }
 }
