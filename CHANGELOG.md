@@ -1,3 +1,9 @@
+## [3.1.9] - 2026-04-15
+
+### Fixed
+
+- iOS: Fixed initialization with WebShop mode enabled
+
 ## [3.1.8] - 2026-09-04
 
 ### Changed
