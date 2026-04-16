@@ -132,8 +132,6 @@ static XsollaUnityMobile *sharedMyManager = nil;
 
 - (void) initialize:(SKPaymentSettings * _Nonnull)settings withCallback:(void(^)(NSString*, NSString*))callback {
     XsollaUnityLog(SKLogLevelVerbose, @"XsollaUnityMobile initialize");
-    
-    [self reset];
 
     SKPaymentQueue* queue = [SKPaymentQueue defaultQueue];
     [queue startWithSettings:settings]; 
@@ -1029,6 +1027,8 @@ extern "C"
         XsollaUnityMobile.shared.defaultPurchaseCallback = ^(NSString *jsonResult, NSString *error) {
             callback(paymentListener, jsonResult ? [jsonResult UTF8String] : NULL, error ? [error UTF8String] : NULL);
         };
+        
+        [[XsollaUnityMobile shared] reset]; // reset before we parse settings and set some variables
         
         SKPaymentSettings* settings = _JsonToPaymentSettingsWithLogLevel(settingsJson, parsedLogLevel);
         if (settings == nil) {
