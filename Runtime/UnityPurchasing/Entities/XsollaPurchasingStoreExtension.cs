@@ -2,7 +2,6 @@
 using System;
 using JetBrains.Annotations;
 using UnityEngine.Purchasing;
-using UnityEngine.Purchasing.Extension;
 using Xsolla.SDK.Store;
 
 namespace Xsolla.SDK.UnityPurchasing
@@ -10,7 +9,7 @@ namespace Xsolla.SDK.UnityPurchasing
     /// <summary>
     /// Provides extension methods for Xsolla Unity Purchasing store.
     /// </summary>
-    public interface IXsollaPurchasingStoreExtension : IStoreExtension
+    public interface IXsollaPurchasingStoreExtension
     {
         /// <summary>
         /// Restores previous transactions.
@@ -40,15 +39,15 @@ namespace Xsolla.SDK.UnityPurchasing
         /// </summary>
         /// <param name="onPurchaseSucceeded">
         /// Callback invoked on successful purchase.
-        /// Parameters: store callback, product ID, transaction ID, receipt.
+        /// Parameters: store purchase callback, pending order.
         /// </param>
         /// <param name="onPurchaseFailed">
         /// Callback invoked on purchase failure.
-        /// Parameters: store callback, purchase failure description.
+        /// Parameters: store purchase callback, failed order.
         /// </param>
         void SetCustomPurchaseFlowCallbacks(
-            [CanBeNull] Action<IStoreCallback, string, string, string> onPurchaseSucceeded,
-            [CanBeNull] Action<IStoreCallback, PurchaseFailureDescription> onPurchaseFailed
+            [CanBeNull] Action<IStorePurchaseCallback, PendingOrder> onPurchaseSucceeded,
+            [CanBeNull] Action<IStorePurchaseCallback, FailedOrder> onPurchaseFailed
         );
 
         /// <summary>

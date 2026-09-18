@@ -1,14 +1,21 @@
 ﻿#if !XSOLLA_SDK_UNITY_PURCHASING_DISABLE
 using JetBrains.Annotations;
+using UnityEngine.Purchasing;
 using UnityEngine.Purchasing.Extension;
 using Xsolla.SDK.Common;
 
 namespace Xsolla.SDK.UnityPurchasing
 {
+    using UnityStore = UnityEngine.Purchasing.Extension.Store;
+
     /// <summary>
-    /// Provides a Unity Purchasing module for Xsolla integration.
+    /// Provides a Unity Purchasing store for Xsolla integration.
     /// </summary>
-    public class XsollaPurchasingModule : AbstractPurchasingModule
+    /// <remarks>
+    /// Register the module with <c>UnityIAPServices.AddNewCustomStore(module)</c> before asking for
+    /// a store controller by <see cref="StoreName"/>.
+    /// </remarks>
+    public class XsollaPurchasingModule : IStoreWrapper
     {
         /// <summary>
         /// Gets the store name for Xsolla Purchasing.
@@ -44,6 +51,8 @@ namespace Xsolla.SDK.UnityPurchasing
         /// </summary>
         [CanBeNull] private readonly XsollaClientConfiguration _configuration;
 
+        private readonly XsollaPurchasingStore _store;
+
         /// <summary>
         /// Initializes a new instance of <see cref="XsollaPurchasingModule"/>.
         /// </summary>
@@ -51,24 +60,33 @@ namespace Xsolla.SDK.UnityPurchasing
         private XsollaPurchasingModule(XsollaClientConfiguration configuration)
         {
             _configuration = configuration;
-        }
 
-        #region AbstractPurchasingModule
-
-        /// <summary>
-        /// Configures the purchasing module and registers the Xsolla store.
-        /// </summary>
-        public override void Configure()
-        {
             XsollaLogger.SetLogLevel(_configuration.logLevel);
 
-            var store = new XsollaPurchasingStore(_configuration);
-
-            BindExtension<IXsollaPurchasingStoreExtension>(store);
-            BindConfiguration<IXsollaPurchasingStoreConfiguration>(store);
-
-            RegisterStore(StoreName, store);
+            _store = new XsollaPurchasingStore(_configuration);
         }
+
+        /// <summary>
+        /// Xsolla specific store API, replaces the extension provider removed in Unity IAP 5.
+        /// </summary>
+        public IXsollaPurchasingStoreExtension Extension => _store;
+
+        #region IStoreWrapper
+
+        /// <summary>
+        /// Gets the instance of the store.
+        /// </summary>
+        public UnityStore instance => _store;
+
+        /// <summary>
+        /// Gets the name of the store.
+        /// </summary>
+        public string name => StoreName;
+
+        /// <summary>
+        /// Gets the connection state of the store.
+        /// </summary>
+        public ConnectionState GetStoreConnectionState() => _store.ConnectionState;
 
         #endregion
     }

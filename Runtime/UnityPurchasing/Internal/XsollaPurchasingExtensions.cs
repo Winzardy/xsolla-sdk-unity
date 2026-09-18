@@ -8,7 +8,7 @@ using Xsolla.SDK.Common;
 namespace Xsolla.SDK.UnityPurchasing
 {
     /// <summary>
-    /// <see cref="UnityEngine.Purchasing.Product"/>'s <see cref="UnityEngine.Purchasing.Product.receipt"/> in a deserialized form.
+    /// <see cref="UnityEngine.Purchasing.Order"/>'s <see cref="UnityEngine.Purchasing.IOrderInfo.Receipt"/> in a deserialized form.
     /// </summary>
     internal readonly struct PurchaseEventPayload
     {
@@ -144,12 +144,10 @@ namespace Xsolla.SDK.UnityPurchasing
             }
         }
 
-        internal static PurchaseEventPayload? ExtractPayload(this PurchaseEventArgs purchaseEventArgs)
+        internal static PurchaseEventPayload? ExtractPayload(this Order order)
         {
-            if (!purchaseEventArgs.purchasedProduct.hasReceipt) return null;
-
-            var payloadStr = ExtractPayloadAsString(purchaseEventArgs.purchasedProduct.receipt);
-            if (!string.IsNullOrEmpty(payloadStr)) return null;
+            var payloadStr = ExtractPayloadAsString(order?.Info?.Receipt);
+            if (string.IsNullOrEmpty(payloadStr)) return null;
 
             var payload = JsonUtility.FromJson<DeserializedPayload>(payloadStr);
 
