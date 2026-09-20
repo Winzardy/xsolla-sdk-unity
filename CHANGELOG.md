@@ -1,3 +1,24 @@
+## [3.1.9-iap5.1] - 2026-09-20
+
+Winzardy fork of `3.1.9`: the Unity Purchasing bridge targets Unity IAP 5, everything else follows upstream.
+
+### Changed
+
+- `Xsolla.SDK.UnityPurchasing` ported to the Unity IAP 5 store SPI: `XsollaPurchasingStore` implements `Store` (`Connect`, `FetchProducts`, `FetchPurchases`, `Purchase(ICart)`, `FinishTransaction(PendingOrder)`, `CheckEntitlement`), `XsollaPurchasingModule` is an `IStoreWrapper` registered through `UnityIAPServices.AddNewCustomStore`
+- Xsolla specific API is reachable as `XsollaPurchasingModule.Extension`, the extension provider no longer exists in Unity IAP 5
+- Store connection and catalog failures are reported as non retryable, the default Unity IAP retry policy would otherwise retry them forever
+- Assembly references renamed from `UnityEngine.Purchasing` to `Unity.Purchasing`, `com.unity.purchasing` dependency raised to `5.4.3`
+
+### Added
+
+- `IXsollaPurchasingStoreExtension.SetPurchaseArgsProvider`: prepares `XsollaStoreClientPurchaseArgs` (a payment token above all) for every purchase started through `StoreController`, a null result cancels the purchase as `UserCancelled`
+- `XsollaPurchasingOrderInfo`: `IOrderInfo` wrapping the Xsolla receipt into the unified receipt Unity IAP expects
+
+### Removed
+
+- `IXsollaPurchasingStoreConfiguration`: `IStoreConfiguration` is legacy in Unity IAP 5 and the store never used it
+- `PurchaseEventArgs` payload helpers: `PurchaseEventArgs` is gone in Unity IAP 5, the receipt lives in `Order.Info.Receipt`
+
 ## [3.1.9] - 2026-04-15
 
 ### Fixed
