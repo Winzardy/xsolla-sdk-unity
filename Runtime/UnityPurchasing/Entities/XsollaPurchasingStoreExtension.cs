@@ -7,10 +7,35 @@ using Xsolla.SDK.Store;
 namespace Xsolla.SDK.UnityPurchasing
 {
     /// <summary>
+    /// Prepares the arguments of a purchase started through Unity IAP, before it reaches Xsolla.
+    /// </summary>
+    /// <param name="sku">Product the purchase was started for.</param>
+    /// <param name="onReady">
+    /// Hands the prepared arguments back to the store.
+    /// Passing null cancels the purchase, it is then reported as <see cref="PurchaseFailureReason.UserCancelled"/>.
+    /// </param>
+    /// <param name="onError">Reports that the arguments could not be prepared and fails the purchase.</param>
+    public delegate void XsollaPurchaseArgsProvider(
+        string sku,
+        Action<XsollaStoreClientPurchaseArgs> onReady,
+        Action<string> onError
+    );
+
+    /// <summary>
     /// Provides extension methods for Xsolla Unity Purchasing store.
     /// </summary>
     public interface IXsollaPurchasingStoreExtension
     {
+        /// <summary>
+        /// Sets the provider that prepares the arguments of every purchase started through Unity IAP.
+        /// </summary>
+        /// <remarks>
+        /// Lets a purchase carry data the serverless flow cannot supply on its own, a payment token above all,
+        /// while the purchase itself still goes through <c>StoreController.PurchaseProduct</c> as usual.
+        /// </remarks>
+        /// <param name="provider">Provider, or null to purchase with the default arguments.</param>
+        void SetPurchaseArgsProvider([CanBeNull] XsollaPurchaseArgsProvider provider);
+
         /// <summary>
         /// Restores previous transactions.
         /// </summary>

@@ -37,7 +37,9 @@ namespace Xsolla.SDK.UnityPurchasing
 
         [CanBeNull] private Action<IStorePurchaseCallback, PendingOrder> onPurchaseSucceeded;
         [CanBeNull] private Action<IStorePurchaseCallback, FailedOrder> onPurchaseFailed;
-        
+
+        [CanBeNull] private XsollaPurchaseArgsProvider purchaseArgsProvider;
+
         [CanBeNull] private XsollaPurchasingStoreValidator _validator;
 
         /// <summary>
@@ -237,7 +239,49 @@ namespace Xsolla.SDK.UnityPurchasing
                 return;
             }
 
-            Purchase(GetStoreSpecificId(item), null, XsollaStoreClientPurchaseArgs.Empty);
+            var sku = GetStoreSpecificId(item);
+
+            if (purchaseArgsProvider == null)
+            {
+                Purchase(sku, null, XsollaStoreClientPurchaseArgs.Empty);
+                return;
+            }
+
+            purchaseArgsProvider(
+                sku,
+                onReady: args =>
+                {
+                    if (args == null)
+                    {
+                        OnPurchaseCanceled(sku);
+                        return;
+                    }
+
+                    Purchase(sku, null, args);
+                },
+                onError: error => OnPurchaseFailed(error, sku)
+            );
+        }
+
+        /// <summary>
+        /// Reports a purchase the arguments provider refused to prepare, the user backed out of it.
+        /// </summary>
+        private void OnPurchaseCanceled(string sku)
+        {
+            XsollaLogger.Warning(Tag, $"Purchase canceled, sku: {sku}");
+
+            if (!TryCreateCart(sku, out var cart))
+            {
+                XsollaLogger.Error(Tag, $"Purchase canceled: unknown product by sku [ {sku} ]");
+                return;
+            }
+
+            var failedOrder = new FailedOrder(cart, PurchaseFailureReason.UserCancelled, "Purchase canceled");
+
+            if (onPurchaseFailed != null)
+                onPurchaseFailed(PurchaseCallback, failedOrder);
+            else
+                PurchaseCallback?.OnPurchaseFailed(failedOrder);
         }
         
         private void Purchase(string sku, string developerPayload, XsollaStoreClientPurchaseArgs args)
@@ -451,6 +495,11 @@ namespace Xsolla.SDK.UnityPurchasing
         public bool TryGetProduct(Product product, out XsollaStoreClientProduct productData)
         {
             return _productById.TryGetValue(product.definition.storeSpecificId, out productData);
+        }
+
+        public void SetPurchaseArgsProvider([CanBeNull] XsollaPurchaseArgsProvider provider)
+        {
+            purchaseArgsProvider = provider;
         }
 
         public void SetCustomPurchaseFlowCallbacks(
