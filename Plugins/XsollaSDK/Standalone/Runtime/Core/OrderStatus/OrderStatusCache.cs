@@ -7,9 +7,9 @@ namespace Xsolla.Core
 {
 	internal static class OrderStatusCache
 	{
-		private static readonly Dictionary<int, OrderStatus> Items = new Dictionary<int, OrderStatus>();
+		private static readonly Dictionary<long, OrderStatus> Items = new Dictionary<long, OrderStatus>();
 
-		public static bool TryPerform(int orderId, Action<OrderStatus> callback)
+		public static bool TryPerform(long orderId, Action<OrderStatus> callback)
 		{
 			if (orderId <= 0)
 				throw new ArgumentException("Order id must be positive number", nameof(orderId));
@@ -33,7 +33,7 @@ namespace Xsolla.Core
 			Items[orderStatus.order_id] = orderStatus;
 		}
 
-		private static OrderStatus GetCompleted(int orderId)
+		private static OrderStatus GetCompleted(long orderId)
 		{
 			if (!Items.TryGetValue(orderId, out var orderStatus))
 				return null;

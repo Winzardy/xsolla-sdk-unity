@@ -1,3 +1,24 @@
+## [3.1.20] - 2026-09-28
+
+### Added
+
+- iOS: native SDK warnings and errors are forwarded to the Unity log via `XsollaLogger`
+- iOS: `XsollaStoreClientError` carries `statusCode`, `errorCode` and `errorMessage` from the Xsolla response (empty for non-Xsolla failures)
+
+### Changed
+
+- iOS: updated SDK to `3.12.0`
+- Android: updated SDK to `3.0.57` (in-session purchases no longer reported as restored under the Events API strategy; payment-token purchases with order IDs above the `int` range no longer fail or report another order's item)
+- Order IDs are now `long` across purchases, receipts, and order status/tracking APIs; Xsolla order IDs are 64-bit
+- iOS: failed purchases and catalog fetches report `Internal`, or `Unauthorized` for a rejected login token, with the same detail, instead of `Unknown`
+
+### Fixed
+
+- `IPurchaseReceipt.purchaseDate` reports the payment time where the platform knows it; undatable restores (e.g. from inventory) report their arrival time
+- Android: `quantity` reports the units a purchase covers instead of always `1`; iOS reports it on restores only
+- iOS/Android: a malformed or oversized `orderId` no longer throws during purchase parsing
+- Win/Mac: orders tracked from a payment token keep their full 64-bit ID; IDs past the `int` range used to wrap and poll the wrong order
+
 ## [3.1.19] - 2026-09-11
 
 ### Changed

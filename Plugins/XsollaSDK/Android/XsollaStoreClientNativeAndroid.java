@@ -2219,6 +2219,9 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
                     .put("invoiceId", purchase.getOrderId() != null ? purchase.getOrderId() : "")
                     .put("transactionId", purchase.getOrderId() != null ? purchase.getOrderId() : "")
                     .put("developerPayload", purchase.getDeveloperPayload())
+                    .put("quantity", purchase.getQuantity())
+                    // Zero for purchases restored from the inventory, which records no purchase history.
+                    .put("purchaseTimeMillis", purchase.getPurchaseTime())
                     .put("receipt", purchase.getPurchaseToken());
             } catch (Exception e) {
                 logError("Failed to convert a purchase into JSON object (" + productId + ")");

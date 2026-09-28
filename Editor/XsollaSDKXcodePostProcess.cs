@@ -10,7 +10,7 @@ namespace Xsolla.SDK.Editor
     public class XsollaSDKXcodePostProcess
     {
         const string PackageUrl = "https://github.com/xsolla/xsolla-sdk-ios";
-        const string PackageVersion = "3.10.0";
+        const string PackageVersion = "3.12.0";
         const string PackageProduct = "XsollaMobileSDK";
 
         [PostProcessBuild]

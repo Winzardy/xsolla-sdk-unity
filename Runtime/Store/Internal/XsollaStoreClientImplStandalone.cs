@@ -2,6 +2,7 @@
 using JetBrains.Annotations;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using UnityEngine;
 using Xsolla.Auth;
@@ -107,6 +108,7 @@ namespace Xsolla.SDK.Store
                                                     .SetTransactionId(evt.transaction_id ?? Guid.NewGuid().ToString())
                                                     .SetSku(evt.sku)
                                                     .SetQuantity(evt.quantity)
+                                                    .SetPurchaseTimeMillis(ToUnixMillis(evt.created_at))
                                                     .SetStatus(evt.order_status)
                                                     .SetReceipt(XsollaClientHelpers.ToJson(evt))
                                                     .SetDeveloperPayload(evt.custom_parameters.TryGetValue("custom_payload", out var parameter) ? parameter : string.Empty)
@@ -212,6 +214,7 @@ namespace Xsolla.SDK.Store
                             .SetTransactionId(evt.transaction_id ?? Guid.NewGuid().ToString())
                             .SetSku(evt.sku)
                             .SetQuantity(evt.quantity)
+                            .SetPurchaseTimeMillis(ToUnixMillis(evt.created_at))
                             .SetStatus(evt.order_status)
                             .SetReceipt(XsollaClientHelpers.ToJson(evt))
                             .SetDeveloperPayload(evt.custom_parameters.TryGetValue("custom_payload", out var parameter) ? parameter : string.Empty)
@@ -801,6 +804,18 @@ namespace Xsolla.SDK.Store
             );
 
             return future;
+        }
+
+        // Events carry the payment time as an ISO 8601 string. Anything unparseable reports no time at all
+        // rather than a guess, which is what a zero means downstream.
+        private static long ToUnixMillis(string timestamp)
+        {
+            return DateTimeOffset.TryParse(timestamp,
+                                           CultureInfo.InvariantCulture,
+                                           DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal,
+                                           out var parsed)
+                ? parsed.ToUnixTimeMilliseconds()
+                : 0;
         }
 
         // The store assembly can see the (internal) retry-policy types in the common assembly, so it
