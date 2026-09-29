@@ -307,11 +307,7 @@ namespace Xsolla.SDK.Store
 
             getPurchaseParams().currency = locale?.currencyCode;
 
-            if (!string.IsNullOrEmpty(configuration.userId))
-                AddCustomParam("custom_user_id", configuration.userId);
-
-            if (!string.IsNullOrEmpty(finalDeveloperPayload))
-                AddCustomParam("custom_payload", finalDeveloperPayload);
+            getPurchaseParams().custom_parameters = MakeCustomParameters(configuration, finalDeveloperPayload);
 
             if (!string.IsNullOrEmpty(args.externalId))
                 getPurchaseParams().external_id = args.externalId;
@@ -378,12 +374,6 @@ namespace Xsolla.SDK.Store
                     onBrowseClosed: null,
                     purchaseParams: purchaseParams
                 );
-            }
-
-            void AddCustomParam(string key, string value)
-            {
-                getPurchaseParams().custom_parameters ??= new Dictionary<string, object>();
-                getPurchaseParams().custom_parameters.Add(key, value);
             }
 
             void OnSuccess(OrderStatus orderStatus)
@@ -804,6 +794,28 @@ namespace Xsolla.SDK.Store
             );
 
             return future;
+        }
+
+        /// <summary>
+        /// Builds the <c>custom_parameters</c> of the create-order request, leaving out each key whose value
+        /// is unset or empty.
+        /// </summary>
+        /// <returns>The parameters in the order they go on the wire, or <c>null</c> when none is set so the
+        /// field stays off the request.</returns>
+        internal static Dictionary<string, object> MakeCustomParameters(XsollaClientConfiguration configuration, string developerPayload)
+        {
+            var customParameters = new Dictionary<string, object>();
+
+            if (!string.IsNullOrEmpty(configuration.userId))
+                customParameters.Add("custom_user_id", configuration.userId);
+
+            if (!string.IsNullOrEmpty(configuration.attributionUserId))
+                customParameters.Add("custom_id", configuration.attributionUserId);
+
+            if (!string.IsNullOrEmpty(developerPayload))
+                customParameters.Add("custom_payload", developerPayload);
+
+            return customParameters.Count > 0 ? customParameters : null;
         }
 
         // Events carry the payment time as an ISO 8601 string. Anything unparseable reports no time at all

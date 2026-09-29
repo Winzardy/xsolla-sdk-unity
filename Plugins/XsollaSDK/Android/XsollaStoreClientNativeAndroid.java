@@ -1167,7 +1167,7 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
                                 loginInfo -> new LoginResult.Success(
                                     loginInfo.getToken(),
                                     loginInfo.getRefreshToken().orElse(null),
-                                    loginInfo.getToken().getValue().getCustomExpiryTime().orElse(ExpiryTime.now())
+                                    loginInfo.getToken().getValue().getExpiryTime().orElse(ExpiryTime.now())
                                 )
                             ))
                         );
@@ -1283,7 +1283,7 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
                         result -> new LoginResult.Success(
                             result.getToken(),
                             result.getRefreshToken().orElse(null),
-                            result.getToken().getValue().getCustomExpiryTime().orElse(ExpiryTime.now())
+                            result.getToken().getValue().getExpiryTime().orElse(ExpiryTime.now())
                         )
                     ))
                 );
@@ -1404,7 +1404,7 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
                         result -> new LoginResult.Success(
                             result.getToken(),
                             result.getRefreshToken().orElse(null),
-                            result.getToken().getValue().getCustomExpiryTime().orElse(ExpiryTime.now())
+                            result.getToken().getValue().getExpiryTime().orElse(ExpiryTime.now())
                         )
                     )
                 ));
@@ -1679,6 +1679,7 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
             final var sdkName = json.optString("sdkName", "Unity");
             final var sdkVersion = json.optString("sdkVersion", "unknown");
             final var userId = json.optString("userId", "");
+            final var attributionUserId = json.optString("attributionUserId", "");
             final String webhooksMode = settings.optString("webhooksMode", "");
 
             final Optional<SocialProviderInfo> maybeSocialProviderInfo = Optional
@@ -1885,7 +1886,8 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
                 .withActivity(activity)
                 .withActivityOrientationLock(activityOrientationLock)
                 .withCloseButton(closeButton)
-                .withCustomUserId(userId.isEmpty() ? null : userId);
+                .withCustomUserId(userId.isEmpty() ? null : userId)
+                .withAttributionUserId(attributionUserId.isEmpty() ? null : attributionUserId);
 
             final var analyticsConfig = Config.Analytics.getDefault()
                 .withGameEngine(sdkName)

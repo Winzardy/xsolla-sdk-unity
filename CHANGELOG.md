@@ -1,3 +1,19 @@
+## [3.1.21] - 2026-09-29
+
+### Added
+
+- `XsollaClientConfiguration.attributionUserId` and `Builder.SetAttributionUserId(string)`: sent as `custom_parameters.custom_id`, so purchase events reach attribution platforms (AppsFlyer, etc.) keyed on your attribution ID. It must equal the customer user ID your attribution SDK reports
+
+### Changed
+
+- Android: updated SDK to `3.0.58` (attribution user ID, argument-less `TokenValue.getExpiryTime()`, partner custom parameters on orders)
+- iOS: updated SDK to `3.13.0` (attribution user ID in `SKPaymentSettings`)
+- Clarified `userId` / `SetUserId` docs: sent as `custom_user_id`, not the attribution ID
+
+### Fixed
+
+- Android: a login token without an explicit expiry now takes its expiry from the `exp` claim instead of the login time
+
 ## [3.1.20] - 2026-09-28
 
 ### Added

@@ -1022,6 +1022,10 @@ static SKPaymentSettings* _JsonToPaymentSettingsWithLogLevel(const char* jsonCSt
         settings.webshopUserId = json[@"userId"];
     }
 
+    if (json[@"attributionUserId"] && [json[@"attributionUserId"] length] > 0) {
+        settings.attributionUserId = json[@"attributionUserId"];
+    }
+
     if (json[@"trackingId"] && [json[@"trackingId"] length] > 0) {
         settings.trackingId = json[@"trackingId"];
     }
@@ -1049,6 +1053,7 @@ static SKPaymentSettings* _JsonToPaymentSettingsWithLogLevel(const char* jsonCSt
                               @"simpleMode",
                               @"locale",
                               @"userId",
+                              @"attributionUserId",
                               @"trackingId",
                               @"sdkName",
                               @"sdkVersion",
