@@ -1,5 +1,7 @@
 # Xsolla Mobile SDK for Unity
 
+![License](https://img.shields.io/github/license/xsolla/xsolla-sdk-unity)
+![Latest release](https://img.shields.io/github/v/release/xsolla/xsolla-sdk-unity)
 [![Unity 2022.3+](https://img.shields.io/badge/Unity-2022.3%2B-orange.svg)](https://unity.com)
 [![Unity IAP 5.4.3+](https://img.shields.io/badge/Unity%20IAP-5.4.3%2B-blue.svg)](https://docs.unity3d.com/Packages/com.unity.purchasing@5.4/manual/index.html)
 [![C#](https://img.shields.io/badge/C%23-blue.svg)](https://docs.microsoft.com/en-us/dotnet/csharp/)
@@ -8,7 +10,7 @@
 Pre-built Unity SDK for integrating in-game payments into your app via Xsolla Pay Station.
 
 > **Winzardy fork.** Upstream [xsolla/xsolla-sdk-unity](https://github.com/xsolla/xsolla-sdk-unity) targets Unity IAP 4.x and does not support 5.x.
-> This fork keeps the SDK itself as in upstream `3.1.9` and ports the Unity Purchasing bridge (`Xsolla.SDK.UnityPurchasing`) to the Unity IAP 5 store SPI.
+> This fork keeps the SDK itself as in upstream `3.1.21` and ports the Unity Purchasing bridge (`Xsolla.SDK.UnityPurchasing`) to the Unity IAP 5 store SPI.
 > Fork versions carry the `-iap5.N` suffix on top of the upstream version they are based on, see [CHANGELOG.md](CHANGELOG.md).
 > If you need Unity IAP 4.x, use upstream.
 
@@ -203,3 +205,12 @@ private void OnPurchasesFetched(Orders orders)
 | `IXsollaPurchasingStoreConfiguration` | Removed, `IStoreConfiguration` is legacy in Unity IAP 5 |
 
 > For the SDK itself — authentication, catalog, Pay Station — see the [SDK Documentation](https://developers.xsolla.com/sdk/).
+
+## Support
+
+- **GitHub Issues:** [github.com/xsolla/xsolla-sdk-unity/issues](https://github.com/xsolla/xsolla-sdk-unity/issues)
+- **Developer portal:** [developers.xsolla.com](https://developers.xsolla.com)
+
+## License
+
+Apache 2.0 License. See [LICENSE](./LICENSE).

@@ -21,7 +21,7 @@ namespace Xsolla.SDK.UnityPurchasing
         
         private const string Tag = "XsollaPurchasingStore";
         
-        private readonly IXsollaStoreClient _storeClient = XsollaStoreClientFactory.Create();
+        private readonly IXsollaStoreClient _storeClient;
 
         private readonly ISimpleFuture<XsollaClientConfiguration, string> _settingsFuture;
         [CanBeNull] private ISimpleFuture<bool, string> _connectedFuture;
@@ -35,6 +35,31 @@ namespace Xsolla.SDK.UnityPurchasing
         private readonly Dictionary<string, XsollaStoreClientPurchasedProduct> _purchasedById =
             new Dictionary<string, XsollaStoreClientPurchasedProduct>();
 
+        /// <summary>
+        /// Purchased quantity of every order handed to Unity IAP, by (transaction, sku), drained in
+        /// <see cref="FinishTransaction"/>. A pending order carries no quantity, but a collapsed multi-unit purchase
+        /// must be consumed in full. Keyed by sku too: bundle and virtual-currency lines can share a transaction id.
+        /// Main thread only, like <see cref="_productById"/>.
+        /// </summary>
+        private readonly Dictionary<(string transactionId, string sku), int> _quantityByPurchase =
+            new Dictionary<(string transactionId, string sku), int>();
+
+        /// <summary>
+        /// Consume stage of every finished purchase, by (transaction, sku), so a purchase confirmed again in the same
+        /// session, an order <see cref="FetchPurchases"/> or a restore hands over once more, is not consumed twice: a
+        /// second consume drains an extra inventory unit or fails on a spent Android token. A failed consume drops its
+        /// key so the next confirmation retries; <see cref="ConsumeState.Done"/> lives for the session, across runs
+        /// the server is the source of truth.
+        /// </summary>
+        private readonly Dictionary<(string transactionId, string sku), ConsumeState> _consumeStateByPurchase =
+            new Dictionary<(string transactionId, string sku), ConsumeState>();
+
+        private enum ConsumeState
+        {
+            InFlight,
+            Done
+        }
+
         [CanBeNull] private Action<IStorePurchaseCallback, PendingOrder> onPurchaseSucceeded;
         [CanBeNull] private Action<IStorePurchaseCallback, FailedOrder> onPurchaseFailed;
 
@@ -47,9 +72,18 @@ namespace Xsolla.SDK.UnityPurchasing
         /// </summary>
         public ConnectionState ConnectionState { get; private set; } = ConnectionState.Disconnected;
 
-        public XsollaPurchasingStore(XsollaClientConfiguration configuration) {
+        public XsollaPurchasingStore(XsollaClientConfiguration configuration)
+            : this(configuration, XsollaStoreClientFactory.Create()) { }
+
+        /// <summary>
+        /// Takes the store client explicitly so tests can drive the store against a stub instead of the
+        /// platform client <see cref="XsollaStoreClientFactory"/> would pick.
+        /// </summary>
+        internal XsollaPurchasingStore(XsollaClientConfiguration configuration, IXsollaStoreClient storeClient) {
+            _storeClient = storeClient;
+
             RunOnStartThread.Create();
-            
+
             _settingsFuture = SimpleFuture.Create<XsollaClientConfiguration, string>(out var promise);
             XsollaLogger.SetLogLevel(configuration.logLevel);
             if (configuration.delayedTask != null)
@@ -374,20 +408,65 @@ namespace Xsolla.SDK.UnityPurchasing
                 return;
             }
 
+            var sku = GetStoreSpecificId(item);
+            var purchase = (transactionId, sku);
+
+            // Without a transaction id the purchase cannot be tracked: it is neither guarded nor remembered
+            // and consumes a single unit
+            var isTracked = !string.IsNullOrEmpty(transactionId);
+
             if (item.Product.type != ProductType.Consumable)
             {
-                XsollaLogger.Debug(Tag, "FinishTransaction: Product is not consumable. Ignoring.");
+                XsollaLogger.Debug(Tag, $"FinishTransaction: sku={sku} transactionId={transactionId} type={item.Product.type} — not consumable, nothing to consume.");
+
+                if (isTracked)
+                    _quantityByPurchase.Remove(purchase);
+
                 ConfirmCallback?.OnConfirmOrderSucceeded(transactionId);
                 return;
             }
 
-            _storeClient.ConsumeProduct(GetStoreSpecificId(item), 1, transactionId,
+            if (isTracked && _consumeStateByPurchase.TryGetValue(purchase, out var consumeState))
+            {
+                XsollaLogger.Debug(Tag, $"FinishTransaction: ignoring a repeated finish (state={consumeState}) sku={sku} transactionId={transactionId}");
+
+                // Unity IAP rejects a second confirmation while the first is pending, so an in-flight consume
+                // reports for both; a consumed one is confirmed right away
+                if (consumeState == ConsumeState.Done)
+                {
+                    // The order was handed over again and tracked its quantity anew
+                    _quantityByPurchase.Remove(purchase);
+                    ConfirmCallback?.OnConfirmOrderSucceeded(transactionId);
+                }
+                return;
+            }
+
+            var quantity = isTracked && _quantityByPurchase.TryGetValue(purchase, out var tracked) ? tracked : 1;
+
+            XsollaLogger.Debug(Tag, $"FinishTransaction: consuming sku={sku} quantity={quantity} transactionId={transactionId}");
+
+            if (isTracked)
+                _consumeStateByPurchase[purchase] = ConsumeState.InFlight;
+
+            _storeClient.ConsumeProduct(sku, quantity, transactionId,
                 onSuccess: () => {
-                    XsollaLogger.Debug(Tag, $"FinishTransaction finished");
+                    if (isTracked)
+                    {
+                        _consumeStateByPurchase[purchase] = ConsumeState.Done;
+
+                        // Dropped only after a confirmed consume, a retried finish still drains the full quantity
+                        _quantityByPurchase.Remove(purchase);
+                    }
+
+                    XsollaLogger.Debug(Tag, $"FinishTransaction finished: sku={sku} consumed {quantity} unit(s)");
                     ConfirmCallback?.OnConfirmOrderSucceeded(transactionId);
                 },
                 onError: error => {
-                    XsollaLogger.Error(Tag, $"FinishTransaction failed: {error}");
+                    // The next confirmation retries the purchase with its tracked quantity
+                    if (isTracked)
+                        _consumeStateByPurchase.Remove(purchase);
+
+                    XsollaLogger.Error(Tag, $"FinishTransaction failed: sku={sku} quantity={quantity} transactionId={transactionId}: {error}");
                     ConfirmCallback?.OnConfirmOrderFailed(
                         new FailedOrder(pendingOrder, PurchaseFailureReason.Unknown, error));
                 }
@@ -424,6 +503,9 @@ namespace Xsolla.SDK.UnityPurchasing
 
             if (!TryCreateCart(purchased.sku, out var cart))
                 return false;
+
+            if (!string.IsNullOrEmpty(purchased.transactionId))
+                _quantityByPurchase[(purchased.transactionId, purchased.sku)] = purchased.quantity > 0 ? purchased.quantity : 1;
 
             var info = new XsollaPurchasingOrderInfo(purchased.ToReceipt().ToJson(), purchased.transactionId);
             order = new PendingOrder(cart, info);

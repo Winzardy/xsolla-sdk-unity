@@ -121,13 +121,13 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
             public final Date accessTokenExpiryTime;
 
             public Success(
-                @NonNull final String accessToken,
-                @Nullable final String refreshToken,
-                @NonNull final Date accessTokenExpiryTime
+                @NonNull final AuthToken accessToken,
+                @Nullable final AuthRefreshToken refreshToken,
+                @NonNull final ExpiryTime accessTokenExpiryTime
             ) {
-                this.accessToken = accessToken;
-                this.refreshToken = refreshToken;
-                this.accessTokenExpiryTime = accessTokenExpiryTime;
+                this.accessToken = accessToken.getValue().toString();
+                this.refreshToken = refreshToken != null ? refreshToken.getValue().toString() : null;
+                this.accessTokenExpiryTime = accessTokenExpiryTime.toDate();
             }
 
             @NonNull
@@ -152,18 +152,18 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
                 @NonNull final JSONObject json, boolean preferRelativeExpiration
             ) {
                 try {
-                    final var expiresInSecs = preferRelativeExpiration
+                    final long expiresInSecs = preferRelativeExpiration
                         ? json.optLong("expiresIn", -1)
                         : -1;
 
-                    final var expirationTimestampMillis = expiresInSecs >= 0
-                        ? System.currentTimeMillis() + expiresInSecs * 1000
-                        : json.getLong("expirationDate") * 1000;
+                    final ExpiryTime expiryTime = expiresInSecs >= 0
+                        ? ExpiryTime.ofRelativeSecs(expiresInSecs)
+                        : ExpiryTime.ofEpochSecs(json.getLong("expirationDate"));
 
                     return new Success(
-                        json.getString("accessToken"),
-                        json.getString("refreshToken"),
-                        new Date(expirationTimestampMillis)
+                        AuthToken.of(TokenValue.of(json.getString("accessToken")).getRightOrThrow()),
+                        AuthRefreshToken.of(TokenValue.of(json.getString("refreshToken")).getRightOrThrow()),
+                        expiryTime
                     );
                 } catch (Exception e) {
                     logError("Failed to parse LoginResult.Success JSON object: " + e);
@@ -239,6 +239,8 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
 
     private static boolean redirectAppRelaunchEnabled = false;
 
+    private static boolean collapseRestoredMultiUnitPurchases = false;
+
     @Nullable
     private static String webshopUrl = null;
 
@@ -257,6 +259,13 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
     private static String trackingId = null;
 
     private static boolean fetchProductsWithGeoLocale = false;
+
+    // Pre-existing per-query flag (per-sku-fetch-public-api.md §4), not one of the new §3 knobs:
+    // when true a fetch tolerates SKUs the backend reports as non-existent (skip + warn), failing
+    // only when all requested SKUs are missing. Read top-level from the C# config (wire key
+    // `skipNonExistentProductsOnQuery`), like the two product flags above. Default true matches
+    // the native default.
+    private static boolean skipNonExistentProductsOnQuery = true;
 
     @NonNull
     private static final AtomicBoolean forceNonSilentNextWidgetLogin = new AtomicBoolean(false);
@@ -277,6 +286,16 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
     private static void logError(String msg) {
         if (logsErrorEnabled)
             Log.e(TAG, msg);
+    }
+
+    private void reportPurchaseError(@NonNull final BillingResult billingResult) {
+        logError(billingResult.toString());
+
+        mainThreadHandler.post(() -> {
+            if (m_purchaseCallback != null) {
+                m_purchaseCallback.onError(JsonHelper.billingResultToJson(billingResult));
+            }
+        });
     }
 
     public void Initialize(
@@ -389,6 +408,10 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
             .map(json -> json.optBoolean("fetchProductsWithGeoLocale", false))
             .orElse(false);
 
+        skipNonExistentProductsOnQuery = maybeJson
+            .map(json -> json.optBoolean("skipNonExistentProductsOnQuery", true))
+            .orElse(true);
+
         forceNonSilentNextWidgetLogin.set(false);
 
         final Optional<JSONObject> maybeAdvancedSettings =
@@ -453,6 +476,15 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
             .map(advancedSettings -> advancedSettings.optBoolean("redirectAppRelaunchEnabled"))
             .orElse(false);
 
+        // Canonical flag lives on XsollaClientSettings (settings.collapseRestoredMultiUnitPurchases),
+        // shared with the standalone implementation. The AdvancedSettingsAndroid key is kept as a
+        // backward-compatible fallback; either one enabling collapse is honored.
+        collapseRestoredMultiUnitPurchases = maybeSettingsJson
+            .map(settingsJson -> settingsJson.optBoolean("collapseRestoredMultiUnitPurchases"))
+            .orElse(false) || maybeAdvancedSettings
+                .map(advancedSettings -> advancedSettings.optBoolean("collapseRestoredMultiUnitPurchases"))
+                .orElse(false);
+
         logDebug("Initialize: " + argsJson);
         logDebug("SimpleMode: " + simpleMode);
         logDebug("UseBuyButtonSolution: " + useBuyButtonSolution);
@@ -463,10 +495,25 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
         logDebug("FetchPersonalizedProductsOnly: " + fetchPersonalizedProductsOnly);
         logDebug("TrackingId: " + (trackingId != null ? trackingId : "N/A"));
         logDebug("FetchProductsWithGeoLocale: " + fetchProductsWithGeoLocale);
+        logDebug("SkipNonExistentProductsOnQuery: " + skipNonExistentProductsOnQuery);
         logDebug("QueryCancellationReasonEnabled: " + queryCancellationReasonEnabled);
         logDebug("RedirectAppRelaunchEnabled: " + redirectAppRelaunchEnabled);
+        logDebug("CollapseRestoredMultiUnitPurchases: " + collapseRestoredMultiUnitPurchases);
 //      logDebug("InvokePurchasesUpdatedIfOrderIdMissing: " + fetchProductsWithGeoLocale);
         logDebug("AdditionalSettings: " + maybeAdditionalSettingsJson.orElse(null));
+
+        // Per-SKU product-fetch tunables. Unity governs them for every platform and resolves nulls to
+        // its own defaults before sending concrete values in the additional settings, so the bridge
+        // applies exactly what it receives and owns no defaults. When the object is absent (no extensions
+        // configured) native's own builder defaults apply.
+        final Optional<JSONObject> maybeProductFetchSettings =
+            maybeAdditionalSettingsJson.flatMap(json -> JsonHelper.getChildObject(json, "productFetchSettings"));
+
+        maybeProductFetchSettings.ifPresent(settings ->
+            logDebug("ProductFetch: maxItemsPerRequest=" + settings.optInt("maxItemsPerRequest")
+                + " maxParallelRequests=" + settings.optInt("maxParallelRequests")
+                + " cacheTtlMillis=" + settings.optLong("cacheTtlMillis"))
+        );
 
         // If there's an existing instance for some reason,
         // shut it down gracefully.
@@ -478,10 +525,22 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
             .newBuilder(activity)
             .setConfig(config
                 .map(config_ -> config_
-                    .withCommon(common -> common
-                        .withDebugEnabled(debug.orElse(false))
-                        .withRetryPolicies(maybeRetryPolicies.orElse(null))
-                    )
+                    .withCommon(common -> {
+                        var updatedCommon = common
+                            .withDebugEnabled(debug.orElse(false))
+                            .withRetryPolicies(maybeRetryPolicies.orElse(null))
+                            .withCollapseRestoredMultiUnitPurchases(collapseRestoredMultiUnitPurchases);
+
+                        if (maybeProductFetchSettings.isPresent()) {
+                            final JSONObject fetch = maybeProductFetchSettings.get();
+                            updatedCommon = updatedCommon
+                                .withMaxItemsPerProductRequest(fetch.optInt("maxItemsPerRequest"))
+                                .withMaxParallelProductRequests(fetch.optInt("maxParallelRequests"))
+                                .withProductCacheTtlMillis(fetch.optLong("cacheTtlMillis"));
+                        }
+
+                        return updatedCommon;
+                    })
                     .withPayments(payments -> {
                         ConfigWithoutIntegration.Payments.Activity newActivity = payments.getActivity();
                         if (newActivity == null) {
@@ -696,6 +755,22 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
         final Optional<Boolean> maybeAllowTokenOnlyFinishedStatusWithoutOrderId = json.flatMap(__ ->
             JsonHelper.jsonToBoolean(__, "allowTokenOnlyFinishedStatusWithoutOrderId")
         );
+        final Optional<String> maybeExternalTransactionToken = json.flatMap(__ ->
+            JsonHelper.jsonToString(__, "externalTransactionToken").filter(s -> !TextUtils.isEmpty(s))
+        );
+
+        // Only the product based flow below builds `BillingFlowParams`, the one place the token can
+        // be attached. Reporting the mismatch beats creating an order that silently drops it.
+        if (maybeExternalTransactionToken.isPresent() && (
+            simpleMode != SimpleMode.Off || maybePaymentToken.isPresent()
+        )) {
+            reportPurchaseError(Error.of(
+                "An external transaction token is only supported by the product based billing"
+                    + " flow, which is unavailable while a payment token is used or 'SimpleMode'"
+                    + " is not 'Off'"
+            ).toBillingResult());
+            return;
+        }
 
         if (simpleMode == SimpleMode.ServerTokens || maybePaymentToken.isPresent()) {
             BillingResult billingResult;
@@ -728,15 +803,7 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
             }
 
             if (!billingResult.isSuccessful()) {
-                logError(billingResult.toString());
-
-                final BillingResult finalBillingResult = billingResult;
-
-                mainThreadHandler.post(() -> {
-                    if (m_purchaseCallback != null) {
-                        m_purchaseCallback.onError(JsonHelper.billingResultToJson(finalBillingResult));
-                    }
-                });
+                reportPurchaseError(billingResult);
             }
         } else if (simpleMode == SimpleMode.WebShop) {
             final CompletableFuture<Either<Error, Void>> future = new CompletableFuture<>();
@@ -788,13 +855,7 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
 
             billingClient.queryProductDetailsAsync(params, (result, productDetailsList) -> {
                 if (result.getResponseCode() != BillingClient.BillingResponseCode.OK || productDetailsList == null) {
-                    logError(result.toString());
-
-                    mainThreadHandler.post(() -> {
-                        if (m_purchaseCallback != null) {
-                            m_purchaseCallback.onError(JsonHelper.billingResultToJson(result));
-                        }
-                    });
+                    reportPurchaseError(result);
                 } else {
                     final BillingFlowCanceller purchaseCanceller = new BillingFlowCanceller();
 
@@ -809,6 +870,7 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
                         ))
                         .setDeveloperPayload(maybeDeveloperPayload.orElse(null))
                         .setExternalTransactionId(maybeExternalTransactionId.orElse(null))
+                        .setExternalTransactionToken(maybeExternalTransactionToken.orElse(null))
                         .setForcePaymentMethodId(maybePaymentMethodId.orElse(null))
                         .setTrackingId(trackingId)
                         .setCanceller(purchaseCanceller)
@@ -981,13 +1043,13 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
         billingClient.getAuthenticationToken((billingResult, authToken) -> {
             logDebug(String.format(Locale.getDefault(),
                 "GetAccessToken: Response: BillingResult=%s Token='%s'",
-                billingResult, authToken != null ? authToken.toString() : ""
+                billingResult, authToken != null ? authToken.getValue().toString() : ""
             ));
 
             final var maybeJson = Optional
                 .ofNullable(authToken)
                 .filter(__ -> billingResult.isSuccessful())
-                .flatMap(authToken_ -> JsonHelper.tokenToJson(authToken_.toString()))
+                .flatMap(authToken_ -> JsonHelper.tokenToJson(authToken_.getValue()))
                 .map(JSONObject::toString);
 
             if (maybeJson.isPresent()) {
@@ -1103,9 +1165,9 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
                                 err -> new LoginResult.Failure(err.toString()),
                                 // Right.
                                 loginInfo -> new LoginResult.Success(
-                                    loginInfo.getToken().toString(),
+                                    loginInfo.getToken(),
                                     loginInfo.getRefreshToken().orElse(null),
-                                    loginInfo.getTokenExpiryTime().orElse(new Date())
+                                    loginInfo.getToken().getValue().getExpiryTime().orElse(ExpiryTime.now())
                                 )
                             ))
                         );
@@ -1180,13 +1242,16 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
             final var maybeArgsWithLoginInfo = maybeArgs.flatMap(args ->
                 JsonHelper.parse(loginInfoJsonStr).flatMap(json -> Optional
                     .ofNullable(LoginResult.Success.parseJson(json, true))
-                    .flatMap(loginResult -> AuthToken
+                    .flatMap(loginResult -> TokenValue
                         .of(loginResult.accessToken)
-                        .mapRight(authToken -> Pair.create(args,
+                        .mapRight(authTokenValue -> Pair.create(args,
                             new LoginInfo(
-                                authToken,
-                                loginResult.refreshToken,
-                                loginResult.accessTokenExpiryTime
+                                AuthToken.of(authTokenValue.withCustomExpiryTime(
+                                    ExpiryTime.ofDate(loginResult.accessTokenExpiryTime)
+                                )),
+                                TokenValue.of(loginResult.refreshToken)
+                                    .mapRight(AuthRefreshToken::of)
+                                    .getRightOr((AuthRefreshToken) null)
                             )
                         ))
                         .fold(
@@ -1216,9 +1281,9 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
                         err -> new LoginResult.Failure(err.toString()),
                         // Success.
                         result -> new LoginResult.Success(
-                            result.getToken().toString(),
+                            result.getToken(),
                             result.getRefreshToken().orElse(null),
-                            result.getTokenExpiryTime().orElse(new Date())
+                            result.getToken().getValue().getExpiryTime().orElse(ExpiryTime.now())
                         )
                     ))
                 );
@@ -1337,9 +1402,9 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
                         err -> new LoginResult.Failure(err.toString()),
                         // Success.
                         result -> new LoginResult.Success(
-                            result.getToken().toString(),
+                            result.getToken(),
                             result.getRefreshToken().orElse(null),
-                            result.getTokenExpiryTime().orElse(new Date())
+                            result.getToken().getValue().getExpiryTime().orElse(ExpiryTime.now())
                         )
                     )
                 ));
@@ -1604,7 +1669,7 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
             final var loginUuid = LoginUuid.parse(settings.optString("loginId", ""));
             final var oauthId = OAuth2ClientId.parse(settings.optInt("oauthClientId", 0))
                 .flatMapRight(id -> Either.ofBoolean(id.toInteger() > 0,
-                    () -> Error.forMessage("Wrong OAuth2 client ID"),
+                    () -> Error.of("Wrong OAuth2 client ID"),
                     () -> id
                 ));
             final var token = JWT.parse(json.optString("accessToken", ""));
@@ -1614,6 +1679,7 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
             final var sdkName = json.optString("sdkName", "Unity");
             final var sdkVersion = json.optString("sdkVersion", "unknown");
             final var userId = json.optString("userId", "");
+            final var attributionUserId = json.optString("attributionUserId", "");
             final String webhooksMode = settings.optString("webhooksMode", "");
 
             final Optional<SocialProviderInfo> maybeSocialProviderInfo = Optional
@@ -1632,13 +1698,15 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
 
             final boolean fetchPersonalizedProductsOnly = json.optBoolean("fetchPersonalizedProductsOnly", true);
             final boolean fetchProductsWithGeoLocale = json.optBoolean("fetchProductsWithGeoLocale");
+            final boolean skipNonExistentProductsOnQuery = json.optBoolean("skipNonExistentProductsOnQuery", true);
 
             final var config = Config.Common.getDefault()
                 .withSandboxEnabled(sandbox)
                 .withLocaleOverride(LocaleInfo.parse(locale).getRightOr((LocaleInfo) null))
                 .withLogLevel(logLevel.equals("Debug") ? LogLevel.VERBOSE : LogLevel.ERROR)
                 .withFetchPersonalizedProductsOnly(fetchPersonalizedProductsOnly)
-                .withUseGeoLocaleOnProductQuery(fetchProductsWithGeoLocale);
+                .withUseGeoLocaleOnProductQuery(fetchProductsWithGeoLocale)
+                .withSkipNonExistentProductsOnQuery(skipNonExistentProductsOnQuery);
 
             final var backText = redirectSettings.map( s -> s.optString("redirectButtonText")).orElse("");
             final var redirectDelay = redirectSettings.map( s -> s.optInt("redirectDelay")).orElse(6);
@@ -1818,7 +1886,8 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
                 .withActivity(activity)
                 .withActivityOrientationLock(activityOrientationLock)
                 .withCloseButton(closeButton)
-                .withCustomUserId(userId.isEmpty() ? null : userId);
+                .withCustomUserId(userId.isEmpty() ? null : userId)
+                .withAttributionUserId(attributionUserId.isEmpty() ? null : attributionUserId);
 
             final var analyticsConfig = Config.Analytics.getDefault()
                 .withGameEngine(sdkName)
@@ -2151,7 +2220,10 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
                     // does not expose a separate transaction identifier distinct from the invoice ID.
                     .put("invoiceId", purchase.getOrderId() != null ? purchase.getOrderId() : "")
                     .put("transactionId", purchase.getOrderId() != null ? purchase.getOrderId() : "")
-                    .put("developerPayload", purchase.getDeveloperPayload() != null ? purchase.getDeveloperPayload() : "")
+                    .put("developerPayload", purchase.getDeveloperPayload())
+                    .put("quantity", purchase.getQuantity())
+                    // Zero for purchases restored from the inventory, which records no purchase history.
+                    .put("purchaseTimeMillis", purchase.getPurchaseTime())
                     .put("receipt", purchase.getPurchaseToken());
             } catch (Exception e) {
                 logError("Failed to convert a purchase into JSON object (" + productId + ")");
@@ -2202,11 +2274,11 @@ public final class XsollaStoreClientNativeAndroid implements PurchasesUpdatedLis
         }
 
         @NonNull
-        private static Optional<JSONObject> tokenToJson(@NonNull final String token) {
+        private static Optional<JSONObject> tokenToJson(@NonNull final TokenValue tokenValue) {
             JSONObject resultJsonObject;
             try {
                 resultJsonObject = new JSONObject()
-                                      .put("token", token);
+                    .put("token", tokenValue.toString());
             } catch (Exception e) {
                 logDebug("[tokenToJson] " + e);
                 resultJsonObject = null;

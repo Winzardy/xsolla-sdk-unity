@@ -1,3 +1,152 @@
+## [3.1.21-iap5.1] - 2026-11-02
+
+Winzardy fork of `3.1.21`: the Unity Purchasing bridge targets Unity IAP 5, everything else follows upstream.
+
+### Changed
+
+- Merged upstream `3.1.10` to `3.1.21`, the Android native SDK now comes from the Xsolla Maven repository through EDM4U instead of the bundled `.aar`
+- `FinishTransaction` consumes the full purchased quantity of an order instead of a single unit, ported from upstream `3.1.19`
+
+### Fixed
+
+- An order confirmed again after its consume, `FetchPurchases` keeps returning it until the server drops it, is confirmed without a second consume, which drained an extra inventory unit or failed on a spent Android purchase token; ported from upstream `3.1.19`
+
+## [3.1.21] - 2026-09-29
+
+### Added
+
+- `XsollaClientConfiguration.attributionUserId` and `Builder.SetAttributionUserId(string)`: sent as `custom_parameters.custom_id`, so purchase events reach attribution platforms (AppsFlyer, etc.) keyed on your attribution ID. It must equal the customer user ID your attribution SDK reports
+
+### Changed
+
+- Android: updated SDK to `3.0.58` (attribution user ID, argument-less `TokenValue.getExpiryTime()`, partner custom parameters on orders)
+- iOS: updated SDK to `3.13.0` (attribution user ID in `SKPaymentSettings`)
+- Clarified `userId` / `SetUserId` docs: sent as `custom_user_id`, not the attribution ID
+
+### Fixed
+
+- Android: a login token without an explicit expiry now takes its expiry from the `exp` claim instead of the login time
+
+## [3.1.20] - 2026-09-28
+
+### Added
+
+- iOS: native SDK warnings and errors are forwarded to the Unity log via `XsollaLogger`
+- iOS: `XsollaStoreClientError` carries `statusCode`, `errorCode` and `errorMessage` from the Xsolla response (empty for non-Xsolla failures)
+
+### Changed
+
+- iOS: updated SDK to `3.12.0`
+- Android: updated SDK to `3.0.57` (in-session purchases no longer reported as restored under the Events API strategy; payment-token purchases with order IDs above the `int` range no longer fail or report another order's item)
+- Order IDs are now `long` across purchases, receipts, and order status/tracking APIs; Xsolla order IDs are 64-bit
+- iOS: failed purchases and catalog fetches report `Internal`, or `Unauthorized` for a rejected login token, with the same detail, instead of `Unknown`
+
+### Fixed
+
+- `IPurchaseReceipt.purchaseDate` reports the payment time where the platform knows it; undatable restores (e.g. from inventory) report their arrival time
+- Android: `quantity` reports the units a purchase covers instead of always `1`; iOS reports it on restores only
+- iOS/Android: a malformed or oversized `orderId` no longer throws during purchase parsing
+- Win/Mac: orders tracked from a payment token keep their full 64-bit ID; IDs past the `int` range used to wrap and poll the wrong order
+
+## [3.1.19] - 2026-09-11
+
+### Changed
+
+- Android: updated SDK to `3.0.55` (payment and login flow queueing, payment redirect handling, surviving config changes and split-screen resize, stable order IDs on restore, auth crash fixes)
+
+### Fixed
+
+- All platforms: a restored purchase is now consumed only once; Unity IAP re-finishes an already-finished transaction on every catalog refresh, which failed with a consume error on Android and could drain an extra inventory unit elsewhere
+- Win/Mac: restored purchases from the Events API now carry `invoiceId`, matching the normal purchase completion path and the Android/iOS behavior
+- Win/Mac/WebGL: order status polling, the cached-order success callback, the create-order cooldown, and catalog fetch retries now use unscaled time; previously they stalled while the game set `Time.timeScale` to `0`
+
+## [3.1.18] - 2026-08-19
+
+### Added
+
+- Added `XsollaStoreClientPurchaseArgs.Builder.SetExternalTransactionToken(string)` for passing external transaction token on supported platforms
+- Android: Added support for `XsollaStoreClientPurchaseArgs.Builder.SetExternalTransactionToken(string)` setter
+
+### Changed
+
+- Android: updated SDK to `3.0.52`
+- iOS: updated SDK to `3.10.0`
+
+### Fixed
+
+- Win/Mac: `CXsollaStoreClientPurchaseArgs::SetExternalId` is now forwarded to the managed layer
+
+## [3.1.17] - 2026-06-30
+
+### Fixed
+
+- Win/Mac/WebGL: login widget close event no longer fires before the token is received
+
+## [3.1.16] - 2026-06-18
+
+### Added
+
+- Win/Mac/WebGL/Android: `collapseRestoredMultiUnitPurchases` on `XsollaClientSettings` — collapse restored multi-unit SKUs into one quantity notification (`true`) or one per unit (`false`, default)
+- Android: deprecated `AdvancedSettingsAndroid.SetCollapseRestoredMultiUnitPurchases` for `XsollaClientSettings.Builder.SetCollapseRestoredMultiUnitPurchases`; both are honored
+- Win/Mac/WebGL/Android: `XsollaStoreClientExtensionsSettings.Builder.SetProductFetchSettings(...)` — per-SKU fetch tunables `maxItemsPerRequest`, `maxParallelRequests`, `cacheTtlMillis` (defaults 50 / 4 / 1h); `cacheTtlMillis` is ignored on standalone (no cache)
+- Win/Mac/WebGL/Android: `XsollaClientConfiguration.Builder.SetSkipMissingProductsOnFetch(bool)` — when `true` (default), skips backend-reported non-existent SKUs and fails only if all are missing
+
+### Changed
+
+- Android: updated SDK to `3.0.46` (per-SKU product fetch)
+- Win/Mac/WebGL: per-SKU fetch retries transient failures (transport, 408/429/5xx) per the `QueryProducts` retry profile; a slow or failing batch no longer blocks sibling batches
+
+### Fixed
+
+- Win/Mac/WebGL: restore now consumes all owned units of a multi-unit SKU; previously one per launch without the Events API
+- `XsollaStoreClientPurchaseArgs.developerPayload` is now applied per purchase; previously the per-call override was ignored for the global payload
+- Win/Mac/WebGL: a failed fetch no longer marks its SKUs as loaded (recorded only on success); the dedup cache is cleared on `Deinitialize` so a re-initialized client refetches
+
+## [3.1.15] - 2026-05-15
+
+### Fixed
+
+- iOS: `SetRedirectUrl()` is now respected by the WebShop flow.
+
+## [3.1.14] - 2026-05-05
+
+### Added
+
+- Android: support for AGP 9.x (Unity 6.4+)
+
+## [3.1.13] - 2026-05-05
+
+### Changed
+
+- Android: updated SDK to `3.0.43` (improved auth token refreshing)
+
+### Fixed
+
+- Android: correct dependency URL
+
+## [3.1.12] - 2026-29-04
+
+### Changed
+
+- Win/Mac/Web: improved auth token refreshing (takes social claims into account)
+
+## [3.1.11] - 2026-23-04
+
+### Changed
+
+- Android: updated SDK to `3.0.42` (a fix for transient dependency conflicts)
+
+## [3.1.10] - 2026-20-04
+
+### Changed
+
+- Android: updated SDK to `3.0.41` (opt-in multi-unit purchase collapsing on restore)
+
+### Added
+
+- Android: Added `collapseRestoredMultiUnitPurchases` setting to `AdvancedSettingsAndroid` — controls whether restored multi-unit SKUs are expanded into individual quantity-1 notifications (default) or reported as a single combined batch; collapse is recommended for high-quantity SKUs such as soft currency
+- Android: Native SDK dependency is now resolved from the public GitHub Maven repository (`https://raw.githubusercontent.com/xsolla/xsolla-sdk-android/main`) via EDM4U rather than bundled as a local `.aar`; transitive dependencies are resolved automatically through the POM
+
 ## [3.1.9-iap5.1] - 2026-09-20
 
 Winzardy fork of `3.1.9`: the Unity Purchasing bridge targets Unity IAP 5, everything else follows upstream.

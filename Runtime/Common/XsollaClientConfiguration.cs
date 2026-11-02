@@ -62,8 +62,19 @@ namespace Xsolla.SDK.Common
         /// <summary>Fetch products with geo locale.</summary>
         public bool fetchProductsWithGeoLocale = false;
 
-        /// <summary>User ID.</summary>
+        /// <summary>
+        /// Partner user ID. Sent to Pay Station as <c>custom_parameters.custom_user_id</c>, which is
+        /// returned to you in webhooks, and used as the webshop user ID. It is not the attribution ID;
+        /// see <see cref="attributionUserId"/>.
+        /// </summary>
         public string userId = string.Empty;
+
+        /// <summary>
+        /// Attribution user ID, sent to Pay Station as <c>custom_parameters.custom_id</c>. Purchase events
+        /// reported to attribution platforms are keyed on it. Must equal the customer user ID your
+        /// attribution SDK (AppsFlyer, etc.) reports. Leave empty to keep the default key.
+        /// </summary>
+        public string attributionUserId = string.Empty;
 
         /// <summary>Simple mode setting.</summary>
         [JsonConverter(typeof(StringEnumConverter))]
@@ -73,6 +84,17 @@ namespace Xsolla.SDK.Common
         public string trackingId = string.Empty;
 
         public bool fetchPersonalizedProductsOnly = true;
+
+        /// <summary>
+        /// When <c>true</c>, a product fetch succeeds even if some requested SKUs don't exist
+        /// (they are skipped and a warning is logged); the fetch fails only when <em>all</em>
+        /// requested SKUs are missing. When <c>false</c>, any missing SKU fails the whole fetch.
+        /// <para/>
+        /// Default <c>true</c>, matching the backend behavior. Honored by the standalone and
+        /// Android implementations; iOS does not support this yet.
+        /// </summary>
+        [JsonProperty("skipNonExistentProductsOnQuery")]
+        public bool skipMissingProductsOnFetch = true;
 
         public string customPayStationDomainProduction = null;
         public string customPayStationDomainSandbox = null;
@@ -169,10 +191,19 @@ namespace Xsolla.SDK.Common
             }
 
             /// <summary>
-            /// Sets the user ID.
+            /// Sets the partner user ID. It is sent as <c>custom_parameters.custom_user_id</c> (returned
+            /// in webhooks) and is also the webshop user ID. It is not the attribution ID; use
+            /// <see cref="SetAttributionUserId"/> for that.
             /// </summary>
-            /// <param name="userId">The user ID.</param>
+            /// <param name="userId">The partner user ID.</param>
             public Builder SetUserId(string userId) { _configuration.userId = userId; return this; }
+
+            /// <summary>
+            /// Sets the attribution user ID, sent as <c>custom_parameters.custom_id</c>.
+            /// Must equal the customer user ID your attribution SDK (AppsFlyer, etc.) reports.
+            /// </summary>
+            /// <param name="attributionUserId">The attribution user ID, or empty to leave it unset.</param>
+            public Builder SetAttributionUserId(string attributionUserId) { _configuration.attributionUserId = attributionUserId; return this; }
 
             /// <summary>
             /// Sets the tracking ID.
@@ -199,7 +230,17 @@ namespace Xsolla.SDK.Common
                 _configuration.fetchPersonalizedProductsOnly = fetchPersonalizedProductsOnly;
                 return this;
             }
-            
+
+            /// <summary>
+            /// Controls whether a product fetch tolerates requested SKUs that don't exist.
+            /// See <see cref="skipMissingProductsOnFetch"/>.
+            /// </summary>
+            public Builder SetSkipMissingProductsOnFetch(bool skipMissingProductsOnFetch)
+            {
+                _configuration.skipMissingProductsOnFetch = skipMissingProductsOnFetch;
+                return this;
+            }
+
             /// <summary>
             /// Overrides the Pay Station domain used to open the payment UI for both environments.
             ///

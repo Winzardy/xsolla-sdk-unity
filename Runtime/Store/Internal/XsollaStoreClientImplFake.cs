@@ -56,9 +56,30 @@ namespace Xsolla.SDK.Store
         
         public void PurchaseProduct(string sku, string developerPayload, XsollaStoreClientPurchaseArgs args, PurchaseProductResultFunc onSuccess, ErrorFunc onError)
         {
-            XsollaLogger.Debug(Tag, $"Purchase {sku} - {developerPayload} - {XsollaStoreClientHelpers.PurchaseToJson(sku, developerPayload, args.externalId)}");
+            var finalDeveloperPayload = args.developerPayload ?? developerPayload;
+            var simpleMode = _configuration != null ? _configuration.simpleMode : XsollaClientConfiguration.SimpleMode.Off;
 
-            if (_configuration != null && _configuration.simpleMode == XsollaClientConfiguration.SimpleMode.WebShop)
+            var purchaseJson = XsollaStoreClientHelpers.PurchaseToJson(
+                sku, finalDeveloperPayload, args.externalId, args.paymentToken, args.paymentMethodId,
+                args.allowTokenOnlyFinishedStatusWithoutOrderId, args.externalTransactionToken
+            );
+
+            XsollaLogger.Debug(Tag, $"Purchase {sku} - {purchaseJson}");
+
+            // Mirrors the native Android gate: an external transaction token only rides the product
+            // based billing flow, so accepting it in every flow would let a fake pass what a device fails.
+            if (!string.IsNullOrEmpty(args.externalTransactionToken)
+                && (simpleMode != XsollaClientConfiguration.SimpleMode.Off || !string.IsNullOrEmpty(args.paymentToken)))
+            {
+                onError?.Invoke(
+                    "An external transaction token is only supported by the product based billing"
+                        + " flow, which is unavailable while a payment token is used or 'SimpleMode'"
+                        + " is not 'Off'"
+                );
+                return;
+            }
+
+            if (simpleMode == XsollaClientConfiguration.SimpleMode.WebShop)
             {
                 if (_configuration.settings.webShopUrl == "" || _configuration.userId == "")
                 {
@@ -85,6 +106,7 @@ namespace Xsolla.SDK.Store
                     .SetQuantity(1) 
                     .SetStatus(XsollaStoreClientPurchasedProduct.Status.Paid)
                     .SetReceipt("")
+                    .SetDeveloperPayload(finalDeveloperPayload)
                     .Build()
             );
         }
